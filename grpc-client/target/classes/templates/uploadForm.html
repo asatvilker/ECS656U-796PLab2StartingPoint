@@ -1,0 +1,23 @@
+<html xmlns:th="https://www.thymeleaf.org">
+<body>
+
+	
+	<div>
+		<form method="POST" enctype="multipart/form-data" action="/">
+			<input type="file" name="file" />
+			<input type="file" name="file2" />
+			<label for="operation">Choose an operation:</label>
+
+			<select name="operation" id="operation">
+				<option value="multiply">Multiply</option>
+				<option value="Addition">Addition</option>
+			</select>
+			<input type="submit" value="Submit"/>
+		</form>
+	</div>
+	<div th:utext="${result}"/>
+	<h2 th:text="${error}"/>
+
+
+</body>
+</html>
