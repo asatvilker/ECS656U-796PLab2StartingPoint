@@ -86,7 +86,7 @@ public class PingPongEndpoint {
 	}
 
 	@PostMapping("/")
-	public String handleFileUpload(@RequestParam("file") MultipartFile file,@RequestParam("file2") MultipartFile file2,@RequestParam("operation") String operation, 
+	public String handleFileUpload(@RequestParam("file") MultipartFile file,@RequestParam("file2") MultipartFile file2,@RequestParam("operation") String operation,@RequestParam("deadline") String deadline, 
 			RedirectAttributes redirectAttributes) throws IOException{
 
 			
@@ -102,7 +102,7 @@ public class PingPongEndpoint {
 			redirectAttributes.addFlashAttribute("result", grpcClientService.add(matrix1,matrix2));
 		}
 		else{
-			redirectAttributes.addFlashAttribute("result", grpcClientService.multiply(matrix1,matrix2));
+			redirectAttributes.addFlashAttribute("result", grpcClientService.multiply(matrix1,matrix2,deadline));
 		}
 		
 		redirectAttributes.addFlashAttribute("error","");

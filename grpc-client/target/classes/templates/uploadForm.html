@@ -12,7 +12,17 @@
 				<option value="multiply">Multiply</option>
 				<option value="Addition">Addition</option>
 			</select>
+			<label>Please select deadline</label>
+			<select name="deadline" id="deadline">
+				<option value="1.0">1.0</option>
+				<option value="1.5">1.5</option>
+				<option value="2.0">2.0</option>
+				<option value="2.5">2.5</option>
+				<option value="3.0">3.0</option>
+			</select>
+
 			<input type="submit" value="Submit"/>
+
 		</form>
 	</div>
 	<div th:utext="${result}"/>
