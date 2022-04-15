@@ -24,8 +24,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class GRPCClientService {
 	ArrayList<int[][]> Rij;
-	
-	waitStatus status = new waitStatus();
 
     public String ping() {
         	ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 9090)
@@ -131,25 +129,16 @@ public class GRPCClientService {
 		long startTime = System.nanoTime();
 		for(int i=0;i<dim/2;i++){//iterate over rows
             for(int j=0;j<dim/2;j++){//iterate over elements in row
-				Rij= new ArrayList<int[][]>();//a temporary result for each element (2*2 matrix)
-	
-				
-                   	   
+				Rij= new ArrayList<int[][]>();//a temporary result for each element (2*2 matrix) 
 				for(int k=0;k<dim/2;k++){//multiply rows by columns      
                         int[][] Aik=getSubset(matrix1,i,k); //rather than multiplying elements, we multiply 2x2 matrices
                         int[][] Bkj=getSubset(matrix2,k,j);
 						
 						Request combinedRequest = getRequest(Aik, Bkj);//creates request in format to send to server
-
 						MatrixServiceGrpc.MatrixServiceStub stub = stubs.get(0).get(0); //get stub at front of queue
-						
-						MultiplyCallback callback = new MultiplyCallback(Rij,channel8,this);//used to take the result and add it to the matrix for this element
-						
+						MultiplyCallback callback = new MultiplyCallback(Rij);//used to take the result and add it to the matrix for this element
 						stub.multiplyBlock(combinedRequest, callback);
-						
-						
-						
-						    
+						  
 						//remove stub from queue once used
 						stubs.get(0).remove(0);
 						if(stubs.get(0).isEmpty()){
@@ -157,10 +146,8 @@ public class GRPCClientService {
 						}
 						      
 					}
-					
-				
-						
-				while(status.total<dim/2){
+			
+				while(Rij.size()<dim/2){//wait for all multiplactions to finish
 					Thread.sleep(1);
 						
 				}
@@ -185,11 +172,12 @@ public class GRPCClientService {
 					}
 					
 				} 
-				status.total=0;
+				
             }
         }
 		long endTime = System.nanoTime();
 		double timeTaken=(double)(endTime-startTime)/1_000_000_000;
+		
 		//build response from result
 		for(int z=0; z<result.length;z++){
 			for(int x=0; x<result.length;x++){
@@ -284,10 +272,6 @@ public class GRPCClientService {
 		int newDims=dim/2;//each element is a 2*2 now the new dimensions will be half
 		int totalStubs=totalSubsets*newDims; //the number os stubs equal to number multiplications (regular multiplication but each element is a 2*2 matrix)
 		return totalStubs;
-	}
-
-	public class waitStatus{
-		int total=0;
 	}
 
 	
