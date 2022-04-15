@@ -97,13 +97,13 @@ public class GRPCClientService {
 
 		//create servers
 		ManagedChannel channel1 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel2 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel3 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel4 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel5 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel6 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel7 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel8 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
+		ManagedChannel channel2 = ManagedChannelBuilder.forAddress("34.105.204.118",9090).usePlaintext().build();
+		ManagedChannel channel3 = ManagedChannelBuilder.forAddress("34.70.212.23",9090).usePlaintext().build();
+		ManagedChannel channel4 = ManagedChannelBuilder.forAddress("34.89.125.113",9090).usePlaintext().build();
+		ManagedChannel channel5 = ManagedChannelBuilder.forAddress("35.189.90.120",9090).usePlaintext().build();
+		ManagedChannel channel6 = ManagedChannelBuilder.forAddress("35.242.139.46",9090).usePlaintext().build();
+		ManagedChannel channel7 = ManagedChannelBuilder.forAddress("35.246.61.223",9090).usePlaintext().build();
+		ManagedChannel channel8 = ManagedChannelBuilder.forAddress("34.105.140.35",9090).usePlaintext().build();
 		ManagedChannel[] channels= {channel1,channel2,channel3,channel4,channel5,channel6,channel7,channel8};
 		
 		//find number of servers needed
