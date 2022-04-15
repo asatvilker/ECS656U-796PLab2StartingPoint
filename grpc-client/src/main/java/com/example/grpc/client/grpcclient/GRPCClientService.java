@@ -9,6 +9,7 @@ import com.example.grpc.server.grpcserver.PingPongServiceGrpc;
 import com.example.grpc.server.grpcserver.MatrixRequest;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.example.grpc.client.grpcclient.PingPongEndpoint.Matrix;
@@ -22,6 +23,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.stereotype.Service;
 @Service
 public class GRPCClientService {
+	ArrayList<int[][]> Rij;
+	
+	waitStatus status = new waitStatus();
+
     public String ping() {
         	ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 9090)
                 .usePlaintext()
@@ -34,6 +39,7 @@ public class GRPCClientService {
 		channel.shutdown();        
 		return helloResponse.getPong();
     }
+	
     public String add(Matrix matrix1, Matrix matrix2){
 
 		ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost",9090)
@@ -85,7 +91,7 @@ public class GRPCClientService {
 		return resp;
     }
 
-	public String multiply(Matrix matrix1, Matrix matrix2, String deadline){
+	public String multiply(Matrix matrix1, Matrix matrix2, String deadline)throws InterruptedException{
 
 		int dim = matrix1.rows;
 		int[][] result= new int[dim][dim];
@@ -107,55 +113,43 @@ public class GRPCClientService {
 		System.out.println("numServers: "+Integer.toString(numServers));
 
 		//find number of stubs per server
-		int totalStubs=getTotalStubs(dim); //the number os stubs equal to number multiplications (regular multiplication but each element is a 2*2 matrix)
+		int totalStubs=getTotalStubs(dim); //the number of stubs equal to number multiplications (regular multiplication but each element is a 2*2 matrix)
 		int channelLength= (int)(totalStubs/numServers)+1; //the number of stubs per channel
 
 		//create stubs
-		ArrayList<ArrayList<MatrixServiceGrpc.MatrixServiceBlockingStub>> stubs = new ArrayList<>();//create array where each element is an array of stubs for that channel
+		ArrayList<ArrayList<MatrixServiceGrpc.MatrixServiceStub>> stubs = new ArrayList<>();//create array where each element is an array of stubs for that channel
 		for(int i=0; i < numServers; i++) {
 			stubs.add(new ArrayList<>());
 			for(int x=0;x<channelLength && totalStubs>0;x++){
-				stubs.get(i).add(MatrixServiceGrpc.newBlockingStub(channels[i]));
+				stubs.get(i).add(MatrixServiceGrpc.newStub(channels[i]));
 				totalStubs-=1;
 			}
 		}
 		
 		
 		//calculate answer
+		long startTime = System.nanoTime();
 		for(int i=0;i<dim/2;i++){//iterate over rows
             for(int j=0;j<dim/2;j++){//iterate over elements in row
-				int[][] Rij= {{0,0},{0,0}};
+				Rij= new ArrayList<int[][]>();//a temporary result for each element (2*2 matrix)
+	
+				
                    	   
 				for(int k=0;k<dim/2;k++){//multiply rows by columns      
                         int[][] Aik=getSubset(matrix1,i,k); //rather than multiplying elements, we multiply 2x2 matrices
                         int[][] Bkj=getSubset(matrix2,k,j);
 						
-						Request combinedRequest = getRequest(Aik, Bkj);
+						Request combinedRequest = getRequest(Aik, Bkj);//creates request in format to send to server
 
-						MatrixServiceGrpc.MatrixServiceBlockingStub stub = stubs.get(0).get(0); //get stub at front of queue
+						MatrixServiceGrpc.MatrixServiceStub stub = stubs.get(0).get(0); //get stub at front of queue
 						
-						MatrixReply A=stub.multiplyBlock(combinedRequest);
-
-						int[][] tmp= {{0,0},{0,0}};
-
-						List<Row> rowList = A.getRowsList();
-						for(int z=0; z<rowList.size();z++){
-							for(int x=0; x<rowList.get(z).getElementsList().size();x++){
-								tmp[z][x]=rowList.get(z).getElements(x);
-							}
-							
-						} 
-
-						Request combinedAddition = getRequest(Rij, tmp);
-						MatrixReply B=stub.addBlock(combinedAddition);
-
-						List<Row> rowListB = B.getRowsList();
-						for(int z=0; z<rowListB.size();z++){
-							for(int x=0; x<rowListB.get(z).getElementsList().size();x++){
-								Rij[z][x]=rowListB.get(z).getElements(x);
-							}
-							
-						}    
+						MultiplyCallback callback = new MultiplyCallback(Rij,channel8,this);//used to take the result and add it to the matrix for this element
+						
+						stub.multiplyBlock(combinedRequest, callback);
+						
+						
+						
+						    
 						//remove stub from queue once used
 						stubs.get(0).remove(0);
 						if(stubs.get(0).isEmpty()){
@@ -163,16 +157,39 @@ public class GRPCClientService {
 						}
 						      
 					}
+					
 				
-				for(int z=0; z<Rij.length;z++){
-					for(int x=0; x<Rij.length;x++){
-						result[(i*2)+z][(j*2)+x]=Rij[z][x];
+						
+				while(status.total<dim/2){
+					Thread.sleep(1);
+						
+				}
+
+				int[][] temp = {{0,0},{0,0}};
+				MatrixServiceGrpc.MatrixServiceBlockingStub addStub = MatrixServiceGrpc.newBlockingStub(channel8);
+				for(int s = 0; s<Rij.size();s++){//add up results to find total 2*2 matrix
+					Request combinedAddition = getRequest(Rij.get(s), temp);
+					MatrixReply B=addStub.addBlock(combinedAddition);
+					List<Row> rowListB = B.getRowsList();
+					for(int z=0; z<rowListB.size();z++){
+						for(int x=0; x<rowListB.get(z).getElementsList().size();x++){
+							temp[z][x]=rowListB.get(z).getElements(x);
+						}			
+					}
+				}			
+    
+				for(int z=0; z<2;z++){//add the elements of our temporary result to our main result
+					for(int x=0; x<2;x++){
+						
+						result[(i*2)+z][(j*2)+x]=temp[z][x];
 					}
 					
 				} 
+				status.total=0;
             }
         }
-
+		long endTime = System.nanoTime();
+		double timeTaken=(double)(endTime-startTime)/1_000_000_000;
 		//build response from result
 		for(int z=0; z<result.length;z++){
 			for(int x=0; x<result.length;x++){
@@ -181,7 +198,8 @@ public class GRPCClientService {
 			resp+="<br>";
 			
 		} 
-
+		
+		resp+="<p>"+Double.toString(timeTaken)+"</p>";
 		
 		return resp;
 	
@@ -251,7 +269,8 @@ public class GRPCClientService {
 		int totalStubs=getTotalStubs(dim); //the number os stubs equal to number multiplications (regular multiplication but each element is a 2*2 matrix)
 
 		double footprint = getTime(matrix1, matrix2, channel);
-
+		System.out.println("Time taken for 1 call: "+Double.toString(footprint));
+		System.out.println("Total stubs (no.of multiplication operations): "+Double.toString(totalStubs));
 		int numServers = (int)(((footprint*totalStubs)/Double.parseDouble(deadline))+1);
 
 		if(numServers>8){//ensuring we dont exceed max number of servers
@@ -266,5 +285,11 @@ public class GRPCClientService {
 		int totalStubs=totalSubsets*newDims; //the number os stubs equal to number multiplications (regular multiplication but each element is a 2*2 matrix)
 		return totalStubs;
 	}
+
+	public class waitStatus{
+		int total=0;
+	}
+
+	
 }
 

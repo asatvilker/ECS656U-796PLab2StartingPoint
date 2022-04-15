@@ -87,10 +87,10 @@ public class PingPongEndpoint {
 
 	@PostMapping("/")
 	public String handleFileUpload(@RequestParam("file") MultipartFile file,@RequestParam("file2") MultipartFile file2,@RequestParam("operation") String operation,@RequestParam("deadline") String deadline, 
-			RedirectAttributes redirectAttributes) throws IOException{
+			RedirectAttributes redirectAttributes) throws IOException,InterruptedException{
 
 			
-		System.out.println(operation);
+		
 		String data1 = new String(file.getBytes());
 		Matrix matrix1=new Matrix(data1);
 
