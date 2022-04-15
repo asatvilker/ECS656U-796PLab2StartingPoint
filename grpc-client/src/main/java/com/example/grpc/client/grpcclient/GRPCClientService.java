@@ -9,22 +9,21 @@ import com.example.grpc.server.grpcserver.PingPongServiceGrpc;
 import com.example.grpc.server.grpcserver.MatrixRequest;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+
 import java.util.List;
+import java.util.Random;
 
 import com.example.grpc.client.grpcclient.PingPongEndpoint.Matrix;
-import com.example.grpc.server.grpcserver.Element;
+
 import com.example.grpc.server.grpcserver.MatrixReply;
 import com.example.grpc.server.grpcserver.MatrixServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import net.devh.boot.grpc.client.inject.GrpcClient;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+
 import org.springframework.stereotype.Service;
 @Service
 public class GRPCClientService {
-	ArrayList<int[][]> Rij;
-
+	
     public String ping() {
         	ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 9090)
                 .usePlaintext()
@@ -97,17 +96,17 @@ public class GRPCClientService {
 
 		//create servers
 		ManagedChannel channel1 = ManagedChannelBuilder.forAddress("localhost",9090).usePlaintext().build();
-		ManagedChannel channel2 = ManagedChannelBuilder.forAddress("34.105.204.118",9090).usePlaintext().build();
-		ManagedChannel channel3 = ManagedChannelBuilder.forAddress("34.70.212.23",9090).usePlaintext().build();
-		ManagedChannel channel4 = ManagedChannelBuilder.forAddress("34.89.125.113",9090).usePlaintext().build();
-		ManagedChannel channel5 = ManagedChannelBuilder.forAddress("35.189.90.120",9090).usePlaintext().build();
-		ManagedChannel channel6 = ManagedChannelBuilder.forAddress("35.242.139.46",9090).usePlaintext().build();
-		ManagedChannel channel7 = ManagedChannelBuilder.forAddress("35.246.61.223",9090).usePlaintext().build();
-		ManagedChannel channel8 = ManagedChannelBuilder.forAddress("34.105.140.35",9090).usePlaintext().build();
+		ManagedChannel channel2 = ManagedChannelBuilder.forAddress("34.70.212.23",9090).usePlaintext().build();
+		ManagedChannel channel3 = ManagedChannelBuilder.forAddress("34.89.125.113",9090).usePlaintext().build();
+		ManagedChannel channel4 = ManagedChannelBuilder.forAddress("35.246.61.223",9090).usePlaintext().build();
+		ManagedChannel channel5 = ManagedChannelBuilder.forAddress("34.105.204.118",9090).usePlaintext().build();
+		ManagedChannel channel6 = ManagedChannelBuilder.forAddress("35.189.90.120",9090).usePlaintext().build();
+		ManagedChannel channel7 = ManagedChannelBuilder.forAddress("34.142.119.54",9090).usePlaintext().build();
+		ManagedChannel channel8 = ManagedChannelBuilder.forAddress("35.242.139.46",9090).usePlaintext().build();
 		ManagedChannel[] channels= {channel1,channel2,channel3,channel4,channel5,channel6,channel7,channel8};
 		
 		//find number of servers needed
-		int numServers = getServers(dim,matrix1, matrix2, channel1,deadline);
+		int numServers = getServers(dim,matrix1, matrix2, channel2,deadline);
 		System.out.println("numServers: "+Integer.toString(numServers));
 
 		//find number of stubs per server
@@ -126,17 +125,20 @@ public class GRPCClientService {
 		
 		
 		//calculate answer
+		ArrayList<ArrayList<ArrayList<int[][]>>> Rij= new ArrayList<>();
+		status status = new status();
 		long startTime = System.nanoTime();
 		for(int i=0;i<dim/2;i++){//iterate over rows
+			Rij.add(new ArrayList<ArrayList<int[][]>>());
             for(int j=0;j<dim/2;j++){//iterate over elements in row
-				Rij= new ArrayList<int[][]>();//a temporary result for each element (2*2 matrix) 
+				Rij.get(i).add(new ArrayList<int[][]>());//a temporary result for each element (2*2 matrix) 
 				for(int k=0;k<dim/2;k++){//multiply rows by columns      
                         int[][] Aik=getSubset(matrix1,i,k); //rather than multiplying elements, we multiply 2x2 matrices
                         int[][] Bkj=getSubset(matrix2,k,j);
 						
 						Request combinedRequest = getRequest(Aik, Bkj);//creates request in format to send to server
 						MatrixServiceGrpc.MatrixServiceStub stub = stubs.get(0).get(0); //get stub at front of queue
-						MultiplyCallback callback = new MultiplyCallback(Rij);//used to take the result and add it to the matrix for this element
+						MultiplyCallback callback = new MultiplyCallback(Rij.get(i).get(j),status);//used to take the result and add it to the matrix for this element
 						stub.multiplyBlock(combinedRequest, callback);
 						  
 						//remove stub from queue once used
@@ -147,15 +149,25 @@ public class GRPCClientService {
 						      
 					}
 			
-				while(Rij.size()<dim/2){//wait for all multiplactions to finish
-					Thread.sleep(1);
-						
-				}
-
+				
+            }
+        }
+		
+		totalStubs=getTotalStubs(dim);
+		while(status.total<totalStubs){//wait for all multiplactions to finish
+			Thread.sleep(0,100000);
+		}
+		
+		
+		for(int row=0;row<Rij.size(); row++){
+			for(int col=0;col<Rij.get(row).size(); col++){
+				
 				int[][] temp = {{0,0},{0,0}};
-				MatrixServiceGrpc.MatrixServiceBlockingStub addStub = MatrixServiceGrpc.newBlockingStub(channel8);
-				for(int s = 0; s<Rij.size();s++){//add up results to find total 2*2 matrix
-					Request combinedAddition = getRequest(Rij.get(s), temp);
+				
+				MatrixServiceGrpc.MatrixServiceBlockingStub addStub = MatrixServiceGrpc.newBlockingStub(channels[new Random().nextInt(channels.length)]);
+				
+				for(int s = 0; s<Rij.get(row).get(col).size();s++){//add up results to find total 2*2 matrix
+					Request combinedAddition = getRequest(Rij.get(row).get(col).get(s), temp);
 					MatrixReply B=addStub.addBlock(combinedAddition);
 					List<Row> rowListB = B.getRowsList();
 					for(int z=0; z<rowListB.size();z++){
@@ -163,18 +175,19 @@ public class GRPCClientService {
 							temp[z][x]=rowListB.get(z).getElements(x);
 						}			
 					}
-				}			
-    
+				}
+
 				for(int z=0; z<2;z++){//add the elements of our temporary result to our main result
 					for(int x=0; x<2;x++){
 						
-						result[(i*2)+z][(j*2)+x]=temp[z][x];
+						result[(row*2)+z][(col*2)+x]=temp[z][x];
 					}
 					
-				} 
-				
-            }
-        }
+				}
+
+			
+			}
+		}
 		long endTime = System.nanoTime();
 		double timeTaken=(double)(endTime-startTime)/1_000_000_000;
 		
@@ -238,15 +251,26 @@ public class GRPCClientService {
     }
 
 	public static double getTime(Matrix matrix1, Matrix matrix2 ,ManagedChannel channel){
-		
+		long startTime = System.nanoTime();
 		int[][] Aik=getSubset(matrix1,0,0); //rather than multiplying elements, we multiply 2x2 matrices
         int[][] Bkj=getSubset(matrix2,0,0);
 						
 		Request combinedRequest = getRequest(Aik, Bkj);
 
 		MatrixServiceGrpc.MatrixServiceBlockingStub testStub =MatrixServiceGrpc.newBlockingStub(channel);
-		long startTime = System.nanoTime();
+		
 		MatrixReply A=testStub.multiplyBlock(combinedRequest);
+
+		int[][] tmp= {{0,0},{0,0}};
+
+        List<Row> rowList = A.getRowsList();
+        for(int z=0; z<rowList.size();z++){//convert result to native array type so it is in correct format
+            for(int x=0; x<rowList.get(z).getElementsList().size();x++){
+                tmp[z][x]=rowList.get(z).getElements(x);
+               
+            }
+            
+        } 
 		long endTime = System.nanoTime();
 		
 		return (double)(endTime-startTime)/1_000_000_000;
@@ -274,6 +298,9 @@ public class GRPCClientService {
 		return totalStubs;
 	}
 
+	public class status{
+		int total=0;
+	}
 	
 }
 
